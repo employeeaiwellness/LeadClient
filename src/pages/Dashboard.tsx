@@ -1,22 +1,60 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useEffect, useState } from 'react';
+import { getLeads } from '../services/leadsService';
+import { getCalendarEvents } from '../services/calendarService';
+import type { Lead } from '../services/leadsService';
+import type { CalendarEvent } from '../services/calendarService';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      try {
+        const [leadsData, eventsData] = await Promise.all([
+          getLeads(user.id),
+          getCalendarEvents(user.id),
+        ]);
+        setLeads(leadsData);
+        setEvents(eventsData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const todayLeads = leads.filter(lead => {
+    const leadDate = new Date(lead.created_at).toDateString();
+    return leadDate === new Date().toDateString();
+  }).length;
+
   const stats = [
-    { label: 'New Leads Today', value: '12', change: '+5.2%', isPositive: true },
-    { label: 'Brand Offers Received', value: '4', change: '+2.1%', isPositive: true },
-    { label: 'Auto-Booked Calls', value: '2', change: '-1.5%', isPositive: false },
+    { label: 'New Leads Today', value: todayLeads.toString(), change: '+5.2%', isPositive: true },
+    { label: 'Total Leads', value: leads.length.toString(), change: '+2.1%', isPositive: true },
+    { label: 'Upcoming Events', value: events.length.toString(), change: '-1.5%', isPositive: false },
   ];
 
-  const upcomingCalls = [
-    { name: 'Maya Patel', time: 'Today, 11:30 AM', status: 'Confirmed', statusColor: 'bg-green-100 text-green-700' },
-    { name: 'Liam Chen', time: 'Today, 2:00 PM', status: 'Pending', statusColor: 'bg-yellow-100 text-yellow-700' },
-    { name: 'Sofia Rossi', time: 'Tomorrow, 9:00 AM', status: 'Confirmed', statusColor: 'bg-green-100 text-green-700' },
-    { name: 'Kenji Tanaka', time: 'April 25, 10:00 AM', status: 'Canceled', statusColor: 'bg-red-100 text-red-700' },
-  ];
+  const upcomingCalls = events
+    .filter(e => new Date(e.event_date) >= new Date())
+    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+    .slice(0, 4)
+    .map(event => ({
+      name: event.title,
+      time: new Date(event.event_date).toLocaleString(),
+      status: event.status === 'scheduled' ? 'Confirmed' : event.status,
+      statusColor: event.status === 'scheduled' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700',
+    }));
 
   const chartData = [30, 45, 28, 55, 42, 70, 35, 65, 48, 75, 40, 50, 80];
 
