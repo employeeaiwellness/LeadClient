@@ -40,6 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          prompt: 'consent'
+        }
       },
     });
     if (error) throw error;

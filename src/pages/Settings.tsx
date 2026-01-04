@@ -1,4 +1,5 @@
 import { Settings as SettingsIcon } from 'lucide-react';
+import ConnectGoogleButton from '../components/ConnectGoogleButton';
 
 export default function Settings() {
   return (
@@ -16,6 +17,7 @@ export default function Settings() {
         <p className="text-gray-600 text-center max-w-md">
           This page is ready for your settings features. Add profile management, notifications, security, and customization options.
         </p>
+        <ConnectGoogleButton />
       </div>
     </div>
   );
