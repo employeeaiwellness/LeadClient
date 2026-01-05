@@ -11,7 +11,7 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
+  const userName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
   useEffect(() => {
     if (!user) return;
@@ -19,8 +19,8 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         const [leadsData, eventsData] = await Promise.all([
-          getLeads(user.id),
-          getCalendarEvents(user.id),
+          getLeads(user.uid),
+          getCalendarEvents(user.uid),
         ]);
         setLeads(leadsData);
         setEvents(eventsData);

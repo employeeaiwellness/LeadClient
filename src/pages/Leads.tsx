@@ -5,7 +5,7 @@ import { getLeads, createLead, deleteLead } from '../services/leadsService';
 import type { Lead } from '../services/leadsService';
 
 export default function Leads() {
-  const { user } = useAuth();
+  const { user, googleAccessToken } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [newLead, setNewLead] = useState({ name: '', email: '', phone: '', company: '', status: 'new' });
@@ -16,8 +16,13 @@ export default function Leads() {
 
     const fetchLeads = async () => {
       try {
-        const data = await getLeads(user.id);
+        const data = await getLeads(user.uid);
         setLeads(data);
+        
+        // Fetch ALL Google Forms and their response data
+        if (googleAccessToken) {
+          await fetchAllGoogleFormsAndResponses();
+        }
       } catch (error) {
         console.error('Failed to fetch leads:', error);
       } finally {
@@ -26,7 +31,83 @@ export default function Leads() {
     };
 
     fetchLeads();
-  }, [user]);
+  }, [user, googleAccessToken]);
+
+  const fetchAllGoogleFormsAndResponses = async () => {
+    if (!googleAccessToken) {
+      console.warn('No Google access token available');
+      return;
+    }
+
+    try {
+      console.log('\n🔍 Fetching Google Forms from your Drive...\n');
+      
+      // Get all Google Forms from Drive
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.form'&spaces=drive&fields=files(id,name,description)&pageSize=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`,
+          },
+        }
+      );
+
+      if (!searchResponse.ok) {
+        console.error('Google Drive API error:', searchResponse.status);
+        return;
+      }
+
+      const searchData = await searchResponse.json();
+      const forms = searchData.files || [];
+      
+      console.log(`✅ Found ${forms.length} Google Forms\n`);
+
+      if (forms.length === 0) {
+        console.log('No Google Forms found in your Drive');
+        return;
+      }
+
+      // Find the "Contact Information" form
+      const contactForm = forms.find((form: any) => form.name === 'Contact Information');
+
+      if (!contactForm) {
+        console.log('❌ "Contact Information" form not found');
+        console.log('Available forms:', forms.map((f: any) => f.name).join(', '));
+        return;
+      }
+
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`📋 Form Name: ${contactForm.name}`);
+      console.log(`Form ID: ${contactForm.id}`);
+      console.log(`${'='.repeat(60)}\n`);
+
+      // Fetch responses for this specific form
+      try {
+        const responsesResponse = await fetch(
+          `https://forms.googleapis.com/v1/forms/${contactForm.id}/responses`,
+          {
+            headers: {
+              Authorization: `Bearer ${googleAccessToken}`,
+            },
+          }
+        );
+
+        if (responsesResponse.ok) {
+          const responsesData = await responsesResponse.json();
+          console.log(`📊 Form Responses (Total: ${responsesData.responses?.length || 0}):`);
+          console.log(responsesData);
+        } else {
+          console.error(`Error fetching responses: ${responsesResponse.status}`, responsesResponse.statusText);
+          const errorData = await responsesResponse.json().catch(() => ({}));
+          console.error('Error details:', errorData);
+        }
+      } catch (error) {
+        console.error(`Error fetching form responses:`, error);
+      }
+    } catch (error) {
+      console.error('Error fetching Google Forms:', error);
+    }
+  };
 
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,12 +115,17 @@ export default function Leads() {
 
     try {
       const lead = await createLead({
-        user_id: user.id,
+        user_id: user.uid,
         ...newLead,
       });
       setLeads([lead, ...leads]);
       setNewLead({ name: '', email: '', phone: '', company: '', status: 'new' });
       setShowForm(false);
+      
+      // Fetch forms again when a new lead is created
+      if (googleAccessToken) {
+        await fetchAllGoogleFormsAndResponses();
+      }
     } catch (error) {
       console.error('Failed to create lead:', error);
     }
@@ -61,69 +147,7 @@ export default function Leads() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Leads</h1>
           <p className="text-gray-600">Manage and track all your leads in one place.</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-600 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Lead
-        </button>
       </div>
-
-      {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-          <form onSubmit={handleAddLead} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Lead Name"
-                value={newLead.name}
-                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={newLead.email}
-                onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="tel"
-                placeholder="Phone"
-                value={newLead.phone}
-                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Company"
-                value={newLead.company}
-                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600"
-              >
-                Add Lead
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {loading ? (
         <div className="text-center py-12">Loading leads...</div>

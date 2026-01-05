@@ -63,7 +63,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+              {user?.displayName || user?.email?.split('@')[0] || 'User'}
             </p>
             <p className="text-xs text-gray-500 truncate">{user?.email}</p>
           </div>

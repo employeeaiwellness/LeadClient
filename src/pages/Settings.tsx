@@ -17,7 +17,7 @@ export default function Settings() {
         <p className="text-gray-600 text-center max-w-md">
           This page is ready for your settings features. Add profile management, notifications, security, and customization options.
         </p>
-        <ConnectGoogleButton />
+        {/* <ConnectGoogleButton /> */}
       </div>
     </div>
   );
