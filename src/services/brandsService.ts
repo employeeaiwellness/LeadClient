@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 
 export interface Brand {
   id: string;
@@ -13,44 +14,59 @@ export interface Brand {
 }
 
 export async function getBrands(userId: string): Promise<Brand[]> {
-  const { data, error } = await supabase
-    .from('brands')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
+  try {
+    const q = query(
+      collection(db, 'brands'),
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Brand));
+  } catch (error) {
+    console.error('Error fetching brands:', error);
+    throw error;
+  }
 }
 
 export async function createBrand(brand: Omit<Brand, 'id' | 'created_at' | 'updated_at'>): Promise<Brand> {
-  const { data, error } = await supabase
-    .from('brands')
-    .insert([brand])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  try {
+    const now = new Date().toISOString();
+    const docRef = await addDoc(collection(db, 'brands'), {
+      ...brand,
+      created_at: now,
+      updated_at: now,
+    });
+    return {
+      id: docRef.id,
+      ...brand,
+      created_at: now,
+      updated_at: now,
+    } as Brand;
+  } catch (error) {
+    console.error('Error creating brand:', error);
+    throw error;
+  }
 }
 
 export async function updateBrand(id: string, updates: Partial<Brand>): Promise<Brand> {
-  const { data, error } = await supabase
-    .from('brands')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  try {
+    const updatedData = { ...updates, updated_at: new Date().toISOString() };
+    await updateDoc(doc(db, 'brands', id), updatedData);
+    return { id, ...updates, ...updatedData } as Brand;
+  } catch (error) {
+    console.error('Error updating brand:', error);
+    throw error;
+  }
 }
 
 export async function deleteBrand(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('brands')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
+  try {
+    await deleteDoc(doc(db, 'brands', id));
+  } catch (error) {
+    console.error('Error deleting brand:', error);
+    throw error;
+  }
 }

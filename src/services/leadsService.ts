@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy } from 'firebase/firestore';
 
 export interface Lead {
   id: string;
@@ -16,44 +17,59 @@ export interface Lead {
 }
 
 export async function getLeads(userId: string): Promise<Lead[]> {
-  const { data, error } = await supabase
-    .from('leads')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
+  try {
+    const q = query(
+      collection(db, 'leads'),
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Lead));
+  } catch (error) {
+    console.error('Error fetching leads:', error);
+    throw error;
+  }
 }
 
 export async function createLead(lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>): Promise<Lead> {
-  const { data, error } = await supabase
-    .from('leads')
-    .insert([lead])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  try {
+    const now = new Date().toISOString();
+    const docRef = await addDoc(collection(db, 'leads'), {
+      ...lead,
+      created_at: now,
+      updated_at: now,
+    });
+    return {
+      id: docRef.id,
+      ...lead,
+      created_at: now,
+      updated_at: now,
+    } as Lead;
+  } catch (error) {
+    console.error('Error creating lead:', error);
+    throw error;
+  }
 }
 
 export async function updateLead(id: string, updates: Partial<Lead>): Promise<Lead> {
-  const { data, error } = await supabase
-    .from('leads')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  try {
+    const updatedData = { ...updates, updated_at: new Date().toISOString() };
+    await updateDoc(doc(db, 'leads', id), updatedData);
+    return { id, ...updates, ...updatedData } as Lead;
+  } catch (error) {
+    console.error('Error updating lead:', error);
+    throw error;
+  }
 }
 
 export async function deleteLead(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('leads')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
+  try {
+    await deleteDoc(doc(db, 'leads', id));
+  } catch (error) {
+    console.error('Error deleting lead:', error);
+    throw error;
+  }
 }
