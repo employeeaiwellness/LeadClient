@@ -92,6 +92,26 @@ export default function Leads() {
           }
         );
 
+        const formResponse = await fetch(
+          `https://forms.googleapis.com/v1/forms/${contactForm.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${googleAccessToken}`,
+            },
+          }
+        );
+
+
+        if (formResponse.ok) {
+          const formData = await formResponse.json();
+          console.log(`📊 Form Data Responses (Total: ${formData.responses?.length || 0}):`);
+          console.log(formData);
+        } else {
+          console.error(`Error fetching responses: ${formResponse.status}`, formResponse.statusText);
+          const errorData = await formResponse.json().catch(() => ({}));
+          console.error('Error details:', errorData);
+        }
+
         if (responsesResponse.ok) {
           const responsesData = await responsesResponse.json();
           console.log(`📊 Form Responses (Total: ${responsesData.responses?.length || 0}):`);
