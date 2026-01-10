@@ -1,16 +1,30 @@
-import { Users, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Users, Plus, Trash2, AlertCircle, CheckCircle, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useForms } from '../contexts/FormsContext';
 import { getLeads, createLead, deleteLead } from '../services/leadsService';
 import type { Lead } from '../services/leadsService';
 
 export default function Leads() {
   const { user, googleAccessToken } = useAuth();
+  const { 
+    selectedForm, 
+    setSelectedForm, 
+    selectedFormData, 
+    selectedFormResponsesArray,
+    selectedFormQuestionsBasedResponses,
+    formsMap,
+    loading: formsLoading,
+    refreshForms
+  } = useForms();
+  
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [newLead, setNewLead] = useState({ name: '', email: '', phone: '', company: '', status: 'new' });
   const [showForm, setShowForm] = useState(false);
+  const [importingForms, setImportingForms] = useState(false);
 
+  // Fetch leads only (not forms - they're now fetched in FormsContext)
   useEffect(() => {
     if (!user) return;
 
@@ -18,11 +32,6 @@ export default function Leads() {
       try {
         const data = await getLeads(user.uid);
         setLeads(data);
-        
-        // Fetch ALL Google Forms and their response data
-        if (googleAccessToken) {
-          await fetchAllGoogleFormsAndResponses();
-        }
       } catch (error) {
         console.error('Failed to fetch leads:', error);
       } finally {
@@ -31,83 +40,12 @@ export default function Leads() {
     };
 
     fetchLeads();
-  }, [user, googleAccessToken]);
+  }, [user]);
 
-  const fetchAllGoogleFormsAndResponses = async () => {
-    if (!googleAccessToken) {
-      console.warn('No Google access token available');
-      return;
-    }
-
-    try {
-      console.log('\n🔍 Fetching Google Forms from your Drive...\n');
-      
-      // Get all Google Forms from Drive
-      const searchResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.form'&spaces=drive&fields=files(id,name,description)&pageSize=100`,
-        {
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`,
-          },
-        }
-      );
-
-      if (!searchResponse.ok) {
-        console.error('Google Drive API error:', searchResponse.status);
-        return;
-      }
-
-      const searchData = await searchResponse.json();
-      const forms = searchData.files || [];
-      
-      console.log(`✅ Found ${forms.length} Google Forms\n`);
-
-      if (forms.length === 0) {
-        console.log('No Google Forms found in your Drive');
-        return;
-      }
-
-      // Find the "Contact Information" form
-      const contactForm = forms.find((form: any) => form.name === 'Contact Information');
-
-      if (!contactForm) {
-        console.log('❌ "Contact Information" form not found');
-        console.log('Available forms:', forms.map((f: any) => f.name).join(', '));
-        return;
-      }
-
-      console.log(`\n${'='.repeat(60)}`);
-      console.log(`📋 Form Name: ${contactForm.name}`);
-      console.log(`Form ID: ${contactForm.id}`);
-      console.log(`${'='.repeat(60)}\n`);
-
-      // Fetch responses for this specific form
-      try {
-        const responsesResponse = await fetch(
-          `https://forms.googleapis.com/v1/forms/${contactForm.id}/responses`,
-          {
-            headers: {
-              Authorization: `Bearer ${googleAccessToken}`,
-            },
-          }
-        );
-
-        if (responsesResponse.ok) {
-          const responsesData = await responsesResponse.json();
-          console.log(`📊 Form Responses (Total: ${responsesData.responses?.length || 0}):`);
-          console.log(responsesData);
-        } else {
-          console.error(`Error fetching responses: ${responsesResponse.status}`, responsesResponse.statusText);
-          const errorData = await responsesResponse.json().catch(() => ({}));
-          console.error('Error details:', errorData);
-        }
-      } catch (error) {
-        console.error(`Error fetching form responses:`, error);
-      }
-    } catch (error) {
-      console.error('Error fetching Google Forms:', error);
-    }
-  };
+  // Log available data for debugging
+  console.log('📊 Selected Form Data:', selectedFormData);
+  console.log('📋 Row-based Responses:', selectedFormResponsesArray);
+  console.log('❓ Question-based Responses:', selectedFormQuestionsBasedResponses);
 
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,11 +59,6 @@ export default function Leads() {
       setLeads([lead, ...leads]);
       setNewLead({ name: '', email: '', phone: '', company: '', status: 'new' });
       setShowForm(false);
-      
-      // Fetch forms again when a new lead is created
-      if (googleAccessToken) {
-        await fetchAllGoogleFormsAndResponses();
-      }
     } catch (error) {
       console.error('Failed to create lead:', error);
     }
@@ -140,6 +73,56 @@ export default function Leads() {
     }
   };
 
+  // Import form responses as new leads
+  const handleImportFormResponses = async () => {
+    if (!user || !selectedFormResponsesArray || selectedFormResponsesArray.length === 0) {
+      alert('No form responses available to import');
+      return;
+    }
+
+    setImportingForms(true);
+    try {
+      let importedCount = 0;
+      
+      // Loop through each response row
+      for (const responseRow of selectedFormResponsesArray) {
+        // Extract data from form response
+        const name = responseRow['Name'] || 'Unknown'; // Adjust field name based on your form
+        const email = responseRow['Email'] || responseRow['email'] || undefined;
+        const phone = responseRow['Phone'] || responseRow['phone'] || undefined;
+        const company = responseRow['Company'] || responseRow['company'] || undefined;
+        const notes = responseRow['I\'m here to…'] || responseRow['Notes'] || undefined; // Custom field
+
+        // Create lead from form response
+        const leadData = {
+          user_id: user.uid,
+          name,
+          email,
+          phone,
+          company,
+          notes,
+          status: 'new',
+          source: `${selectedForm} Form`, // Track which form it came from
+        };
+
+        try {
+          const newLead = await createLead(leadData);
+          setLeads(prev => [newLead, ...prev]);
+          importedCount++;
+        } catch (err) {
+          console.error('Failed to import response as lead:', err);
+        }
+      }
+
+      alert(`✅ Imported ${importedCount} lead(s) from form responses!`);
+    } catch (error) {
+      console.error('Error importing form responses:', error);
+      alert('Failed to import form responses');
+    } finally {
+      setImportingForms(false);
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
@@ -147,6 +130,47 @@ export default function Leads() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Leads</h1>
           <p className="text-gray-600">Manage and track all your leads in one place.</p>
         </div>
+      </div>
+
+      {/* Status Indicators & Form Import Section */}
+      <div className="mb-6">
+        <div className="flex gap-4 mb-4 flex-wrap">
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${googleAccessToken ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+            {googleAccessToken ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span className="text-sm font-medium">
+              {googleAccessToken ? 'Google Token Available' : 'Google Token Loading...'}
+            </span>
+          </div>
+          
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${Object.keys(formsMap).length > 0 ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+            {Object.keys(formsMap).length > 0 ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span className="text-sm font-medium">
+              {Object.keys(formsMap).length > 0 ? `${Object.keys(formsMap).length} Form(s) Cached` : 'Forms Loading...'}
+            </span>
+          </div>
+        </div>
+
+        {/* Form Response Import Section */}
+        {selectedFormResponsesArray.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-900">Form Responses Available</h3>
+                <p className="text-blue-700 text-sm">
+                  Found {selectedFormResponsesArray.length} response(s) from "{selectedForm}"
+                </p>
+              </div>
+              <button
+                onClick={handleImportFormResponses}
+                disabled={importingForms}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                {importingForms ? 'Importing...' : 'Import as Leads'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
