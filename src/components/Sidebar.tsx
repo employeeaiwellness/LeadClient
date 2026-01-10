@@ -52,10 +52,6 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="p-4 border-t border-gray-200">
-        <button className="w-full bg-blue-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mb-4">
-          <Plus className="w-5 h-5" />
-          Add New Lead
-        </button>
 
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">

@@ -1,4 +1,5 @@
 import { AuthProvider } from './contexts/AuthContext';
+import { FormsProvider } from './contexts/FormsContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Router, { useRouter } from './components/Router';
@@ -18,7 +19,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <FormsProvider>
+        <AppContent />
+      </FormsProvider>
     </AuthProvider>
   );
 }
