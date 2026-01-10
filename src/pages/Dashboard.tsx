@@ -5,6 +5,7 @@ import { getLeads } from '../services/leadsService';
 import { getCalendarEvents } from '../services/calendarService';
 import type { Lead } from '../services/leadsService';
 import type { CalendarEvent } from '../services/calendarService';
+import LeadChart from '../components/Dashboard/LeadChart';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -89,59 +90,8 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-white rounded-xl p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Lead Generation: Last 7 Days</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-bold text-gray-900">84</span>
-              <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" />
-                +15%
-              </span>
-            </div>
-          </div>
-
-          <div className="relative h-64">
-            <svg className="w-full h-full" viewBox="0 0 700 200" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
-                </linearGradient>
-              </defs>
-
-              <path
-                d={`M 0 ${200 - chartData[0]} ${chartData.map((val, i) =>
-                  `L ${(i * 700) / (chartData.length - 1)} ${200 - val}`
-                ).join(' ')}`}
-                fill="url(#gradient)"
-                stroke="none"
-              />
-
-              <path
-                d={`M 0 ${200 - chartData[0]} ${chartData.map((val, i) =>
-                  `L ${(i * 700) / (chartData.length - 1)} ${200 - val}`
-                ).join(' ')}`}
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-
-            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500 mt-2">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-              <span>Sun</span>
-            </div>
-          </div>
+        <div className="lg:col-span-2 h-full">
+            <LeadChart />
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
